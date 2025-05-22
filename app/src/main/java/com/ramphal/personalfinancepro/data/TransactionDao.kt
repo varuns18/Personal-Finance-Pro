@@ -1,0 +1,83 @@
+package com.ramphal.personalfinancepro.data
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy.Companion.IGNORE
+import androidx.room.Query
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+abstract class TransactionDao {
+
+    @Insert(onConflict = IGNORE)
+    abstract suspend fun addTransaction(transactionModel: TransactionModel)
+
+    @Delete
+    abstract suspend fun deleteTransaction(transactionModel: TransactionModel)
+
+    @Query(value = "Select * from `Transactions-Table`")
+    abstract fun getAllTransactions(): Flow<List<TransactionModel>>
+
+    @Query(value = "Select * from `Transactions-Table` where id=:id")
+    abstract fun getTransactionById(id: Long): Flow<TransactionModel>
+
+    @Update(onConflict = IGNORE)
+    abstract suspend fun updateTransaction(transactionModel: TransactionModel)
+
+    @Query("""
+  SELECT IFNULL(SUM(
+    CASE 
+      WHEN type = 'Income' THEN CAST(amount AS REAL)
+      WHEN type = 'Expense' THEN -CAST(amount AS REAL)
+      ELSE 0 
+    END
+  ), 0)
+  FROM `Transactions-Table`
+  WHERE timestamp <= strftime('%s', 'now') * 1000
+""")
+    abstract fun getTotalBalance(): Flow<Double>
+
+
+    // 2. This month’s total income
+    @Query("""
+  SELECT IFNULL(SUM(CAST(amount AS REAL)), 0)
+  FROM `Transactions-Table`
+  WHERE type = 'Income'
+    AND timestamp <= strftime('%s', 'now') * 1000
+    AND strftime(
+          '%Y-%m',
+          datetime(timestamp / 1000, 'unixepoch', 'localtime')
+        ) = strftime('%Y-%m', 'now', 'localtime')
+""")
+    abstract fun getThisMonthIncome(): Flow<Double>
+
+
+    // 3. This month’s total expense
+    @Query("""
+  SELECT IFNULL(SUM(CAST(amount AS REAL)), 0)
+  FROM `Transactions-Table`
+  WHERE type = 'Expense'
+    AND timestamp <= strftime('%s', 'now') * 1000
+    AND strftime(
+          '%Y-%m',
+          datetime(timestamp / 1000, 'unixepoch', 'localtime')
+        ) = strftime('%Y-%m', 'now', 'localtime')
+""")
+    abstract fun getThisMonthExpense(): Flow<Double>
+
+
+    @Query("""
+    SELECT *
+    FROM `Transactions-Table`
+    WHERE strftime(
+            '%Y-%m',
+            datetime(timestamp / 1000, 'unixepoch', 'localtime')
+          )
+      = strftime('%Y-%m', 'now', 'localtime')
+    ORDER BY timestamp DESC
+  """)
+    abstract fun getThisMonthTransactions(): Flow<List<TransactionModel>>
+
+}
