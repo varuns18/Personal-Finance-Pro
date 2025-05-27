@@ -2,6 +2,13 @@
 
 **Personal-Finance-Pro** is an Android app for tracking all types of financial transactions, offering visual insights with charts, multi-currency support, customizable date ranges, light/dark themes, and a modern, user-friendly interface. All data is securely stored on your device using Room, with no cloud connection required.
 
+
+## Project Status
+
+✅ **This project is complete and ready for use.**
+- **Play Store Release:** Coming soon!
+
+
 ## Features
 
 - **Comprehensive Transaction Tracking:** Record all types of transactions — income, expenses, and self transfers.
@@ -42,11 +49,6 @@
 - Analyze your financial trends using built-in charts.
 - Switch between multiple currencies and themes.
 - Adjust date ranges from the settings for custom reports.
-
-## Project Status
-
-🚧 **This project is currently under active development.**
-- **Expected completion:** June 15, 2025
 
 ## License
 
