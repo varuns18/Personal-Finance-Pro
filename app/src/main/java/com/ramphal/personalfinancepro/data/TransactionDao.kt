@@ -28,10 +28,10 @@ abstract class TransactionDao {
 
     @Query("""
   SELECT IFNULL(SUM(
-    CASE 
+    CASE
       WHEN type = 'Income' THEN CAST(amount AS REAL)
       WHEN type = 'Expense' THEN -CAST(amount AS REAL)
-      ELSE 0 
+      ELSE 0
     END
   ), 0)
   FROM `Transactions-Table`
@@ -79,5 +79,47 @@ abstract class TransactionDao {
     ORDER BY timestamp DESC
   """)
     abstract fun getThisMonthTransactions(): Flow<List<TransactionModel>>
+
+
+    @Query("""
+        SELECT IFNULL(SUM(CAST(amount AS REAL)), 0)
+        FROM `Transactions-Table`
+        WHERE type = 'Expense'
+          AND `to` = :categoryIndex
+          AND timestamp >= :startDateMillis
+          AND timestamp <= :endDateMillis
+    """)
+    abstract fun getCategorySpendingInDateRange(
+        categoryIndex: Int,
+        startDateMillis: Long,
+        endDateMillis: Long
+    ): Flow<Double>
+
+    @Query("""
+        SELECT IFNULL(SUM(CAST(amount AS REAL)), 0)
+        FROM `Transactions-Table`
+        WHERE type = 'Income'
+          AND `from` = :categoryIndex
+          AND timestamp >= :startDateMillis
+          AND timestamp <= :endDateMillis
+    """)
+    abstract fun getCategoryIncomeInDateRange(
+        categoryIndex: Int,
+        startDateMillis: Long,
+        endDateMillis: Long
+    ): Flow<Double>
+
+    @Query("""
+        SELECT IFNULL(SUM(CAST(amount AS REAL)), 0)
+        FROM `Transactions-Table`
+        WHERE type = :category
+          AND timestamp >= :startDateMillis
+          AND timestamp <= :endDateMillis
+    """)
+    abstract fun getOverallInDateRange(
+        category: String,
+        startDateMillis: Long,
+        endDateMillis: Long
+    ): Flow<Double>
 
 }

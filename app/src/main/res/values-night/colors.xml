@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="red_contrast">#B00020</color>
-    <color name="green_contrast">#0A7E07</color>
+    <color name="red_contrast">#FFEF9A9A</color>
+    <color name="green_contrast">#FF81C784</color>
+    <color name="onSurface">#E2E2E9</color>
 </resources>

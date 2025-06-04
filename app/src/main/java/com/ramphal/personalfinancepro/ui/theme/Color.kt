@@ -78,3 +78,8 @@ val surfaceContainerHighestDark = Color(0xFF33353A)
 
 val ReceivedColor = Color(0xFF2E7D32)
 val SentColor     = Color(0xFFC62828)
+
+val greenColor = Color(0xFF0F9D58)
+val blueColor = Color(0xFF2196F3)
+val yellowColor = Color(0xFFFFC107)
+val redColor = Color(0xFFF44336)

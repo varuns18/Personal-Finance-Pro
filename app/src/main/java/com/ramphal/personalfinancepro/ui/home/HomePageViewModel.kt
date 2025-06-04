@@ -2,10 +2,8 @@ package com.ramphal.personalfinancepro.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ramphal.personalfinancepro.Graph
 import com.ramphal.personalfinancepro.Graph.transactionRepository
 import com.ramphal.personalfinancepro.data.TransactionModel
-import com.ramphal.personalfinancepro.data.TransactionRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,11 +13,13 @@ import kotlinx.coroutines.launch
 class HomePageViewModel: ViewModel() {
 
     lateinit var getThisMonthTransactions: Flow<List<TransactionModel>>
+    lateinit var getAllTransaction: Flow<List<TransactionModel>>
 
 
     init {
         viewModelScope.launch {
             getThisMonthTransactions = transactionRepository.getThisMonthTransactions()
+            getAllTransaction = transactionRepository.getAllTransactions()
         }
     }
 

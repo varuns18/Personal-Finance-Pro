@@ -1,5 +1,6 @@
 package com.ramphal.personalfinancepro.ui.home
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,26 +40,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.ramphal.personalfinancepro.Constant
+import com.ramphal.personalfinancepro.Constant.fallbackSymbols
 import com.ramphal.personalfinancepro.R
-import com.ramphal.personalfinancepro.ui.theme.PersonalFinanceProTheme
-import com.ramphal.personalfinancepro.ui.theme.ReceivedColor
+import com.ramphal.personalfinancepro.ui.settings.AmountFormatType
+import com.ramphal.personalfinancepro.ui.settings.AmountFormattingSettings
 import com.ramphal.personalfinancepro.ui.theme.myFont
 import java.text.DecimalFormat
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Currency
-import java.util.Locale
 import kotlin.math.abs
 
 
@@ -70,29 +71,33 @@ fun HomePageView(
     navController: NavHostController,
     viewModel: HomePageViewModel,
     modifier: Modifier = Modifier,
-    onSeeAllClick: () -> Unit
+    onSeeAllClick: () -> Unit,
+    amountFormattingSettings: AmountFormattingSettings,
 ) {
 
     val totalBalance      by viewModel.totalBalance.collectAsState()
     val thisMonthIncome   by viewModel.thisMonthIncome.collectAsState()
     val thisMonthExpense  by viewModel.thisMonthExpense.collectAsState()
-    val transactions      by viewModel.getThisMonthTransactions.collectAsState(initial = emptyList())
+    val allTransactions   by viewModel.getAllTransaction.collectAsState(initial = emptyList())
+    val thisMonthTransactions by viewModel.getThisMonthTransactions.collectAsState(initial = emptyList())
 
     val lazyListState = rememberLazyListState()
     val isExpanded by remember { derivedStateOf { lazyListState.firstVisibleItemIndex == 0 } }
 
-    // Define “now” as a LocalDateTime
     val now = remember { LocalDateTime.now() }
 
-    val (upcoming, completed) = remember(transactions, now) {
-        transactions.partition { it.timestamp.isAfter(now) }
+    val upcomingAll = remember(allTransactions, now) {
+        allTransactions.filter { it.timestamp.isAfter(now) }
+    }
+    val upcomingSorted = remember(upcomingAll) {
+        upcomingAll.sortedBy { it.timestamp }
     }
 
-    val upcomingSorted = remember(upcoming) {
-        upcoming.sortedBy { it.timestamp }             // soonest first
+    val completedThisMonth = remember(thisMonthTransactions, now) {
+        thisMonthTransactions.filter { !it.timestamp.isAfter(now) }
     }
-    val completedSorted = remember(completed) {
-        completed.sortedByDescending { it.timestamp }  // most recent first
+    val completedSorted = remember(completedThisMonth) {
+        completedThisMonth.sortedByDescending { it.timestamp }
     }
 
 
@@ -106,10 +111,10 @@ fun HomePageView(
                 CustomTopAppBar()
             }
             stickyHeader {
-                BalanceCard(totalBalance = totalBalance)
+                BalanceCard(totalBalance = totalBalance, settings = amountFormattingSettings, context = LocalContext.current)
             }
             stickyHeader {
-                IncomeAndExpenseCard(thisMonthExpense = thisMonthExpense, thisMonthIncome = thisMonthIncome)
+                IncomeAndExpenseCard(thisMonthExpense = thisMonthExpense, thisMonthIncome = thisMonthIncome, settings = amountFormattingSettings)
             }
             item {
                 if (upcomingSorted.isNotEmpty()){
@@ -145,6 +150,7 @@ fun HomePageView(
                         }
                         upcomingSorted.forEach{ transactionList ->
                             TransitionItem(
+                                settings = amountFormattingSettings,
                                 modifier = Modifier.padding(bottom = 8.dp, start = 16.dp, end = 16.dp),
                                 title = if (transactionList.type == "Expense") {
                                     Constant.categories[transactionList.to].name
@@ -208,6 +214,7 @@ fun HomePageView(
                         }
                         completedSorted.forEach{ transactionList ->
                             TransitionItem(
+                                settings = amountFormattingSettings,
                                 modifier = Modifier.padding(bottom = 8.dp, start = 16.dp, end = 16.dp),
                                 title = if (transactionList.type == "Expense") {
                                     Constant.categories[transactionList.to].name
@@ -245,13 +252,14 @@ fun HomePageView(
 
 @Composable
 private fun BalanceCard(
-    totalBalance: Double
+    totalBalance: Double,
+    settings: AmountFormattingSettings,
+    context: android.content.Context
 ){
     val (sign, symbol, amount) = remember(totalBalance) {
         formatAmountComponents(
             totalBalance,
-            locale = Locale.getDefault(),   // or Locale("en","IN") if you want INR formatting
-            currencyCode = Currency.getInstance(Locale.getDefault()).currencyCode
+            settings = settings,
         )
     }
     Column (
@@ -290,7 +298,9 @@ private fun BalanceCard(
                     )
                 }
                 FilledIconButton(
-                    onClick = {},
+                    onClick = {
+                        Toast.makeText(context, "Coming Soon", Toast.LENGTH_SHORT).show()
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                 ){
@@ -305,19 +315,21 @@ private fun BalanceCard(
 }
 
 @Composable
-private fun IncomeAndExpenseCard(thisMonthExpense: Double, thisMonthIncome: Double) {
+private fun IncomeAndExpenseCard(
+    thisMonthExpense: Double,
+    thisMonthIncome: Double,
+    settings: AmountFormattingSettings
+) {
     val (signE, symbolE, amountE) = remember(thisMonthExpense) {
         formatAmountComponents(
             thisMonthExpense,
-            locale = Locale.getDefault(),   // or Locale("en","IN") if you want INR formatting
-            currencyCode = Currency.getInstance(Locale.getDefault()).currencyCode
+            settings = settings,
         )
     }
     val (signI, symbolI, amountI) = remember(thisMonthIncome) {
         formatAmountComponents(
             thisMonthIncome,
-            locale = Locale.getDefault(),   // or Locale("en","IN") if you want INR formatting
-            currencyCode = Currency.getInstance(Locale.getDefault()).currencyCode
+            settings = settings,
         )
     }
     Column(
@@ -394,13 +406,13 @@ fun TransitionItem(
     amount: String,
     icon: Int,
     date: String,
-    color: Color
+    color: Color,
+    settings: AmountFormattingSettings
 ){
     val (sign2, symbol, amount) = remember(amount) {
         formatAmountComponents(
             amount.toDouble(),
-            locale = Locale.getDefault(),   // or Locale("en","IN") if you want INR formatting
-            currencyCode = Currency.getInstance(Locale.getDefault()).currencyCode
+            settings = settings,
         )
     }
     Column {
@@ -462,7 +474,9 @@ fun TransitionItem(
 }
 
 @Composable
-fun CustomTopAppBar(){
+fun CustomTopAppBar(
+    title: String = "Personal Finance Pro"
+){
     Column (
         modifier = Modifier
             .fillMaxWidth()
@@ -479,7 +493,7 @@ fun CustomTopAppBar(){
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "Personal Finance Pro",
+                    text = title,
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.Center),
@@ -556,34 +570,30 @@ fun CustomPrice(
 
 fun formatAmountComponents(
     rawAmount: Double,
-    locale: Locale = Locale.getDefault(),
-    currencyCode: String = Currency.getInstance(locale).currencyCode
+    settings: AmountFormattingSettings // Updated to take AmountFormattingSettings object
 ): Triple<String, String, String> {
-
     val sign = if (rawAmount < 0) "-" else "+"
-
-    val symbol = "₹"
-
-    val formatter = DecimalFormat("#,##,##0.##")
-    val amountString = formatter.format(abs(rawAmount))
-
-    return Triple(sign, symbol, amountString)
-}
-
-@Preview(showBackground = true)
-@Composable
-fun TransitionItemPreview() {
-    PersonalFinanceProTheme {
-        TransitionItem(
-            sign = "+",
-            modifier = Modifier,
-            title = "Java Developer",
-            amount = "26000",
-            icon = Constant.categories[7].icon,
-            date = "06 May",
-            color = ReceivedColor
-        )
+    val symbol = fallbackSymbols[settings.preferredCurrencyCode] ?:
+    try {
+        Currency.getInstance(settings.preferredCurrencyCode).symbol
+    } catch (e: IllegalArgumentException) {
+        settings.preferredCurrencyCode // Fallback to the code itself if symbol not found
     }
+    val pattern = when (settings.amountFormatType) {
+        AmountFormatType.INTERNATIONAL -> "#,##0"    // e.g., 1,234,567
+        AmountFormatType.INDIAN -> "##,##,##0"       // e.g., 12,34,567
+        AmountFormatType.NONE -> "#0"                // e.g., 1234567 (no separators)
+    }
+    val decimalPart = if (settings.decimalPlaces > 0) {
+        "." + "#".repeat(settings.decimalPlaces)
+    } else {
+        ""
+    }
+
+    // Initialize DecimalFormat with the determined pattern
+    val formatter = DecimalFormat(pattern + decimalPart)
+    val amountString = formatter.format(abs(rawAmount))
+    return Triple(sign, symbol, amountString)
 }
 
 

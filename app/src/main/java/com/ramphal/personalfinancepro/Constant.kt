@@ -38,6 +38,12 @@ object Constant {
         CategoryItem(R.drawable.ic_gifts_24px,      "Gifts"),
     )
 
+    val OverallCat = listOf<CategoryItem>(
+        CategoryItem(R.drawable.receive_24px,"Income"),
+        CategoryItem(R.drawable.send_24px,"Expense"),
+        CategoryItem(R.drawable.self_transfer_24px,"Transfer"),
+    )
+
     val accountItems = listOf<AccountItem>(
         AccountItem(R.drawable.ic_bank_account_24px, "Bank", "+", "$", "22300"),
         AccountItem(R.drawable.ic_savings_24px, "Savings", "+", "$", "560"),
@@ -63,5 +69,12 @@ object Constant {
         "DKK" to "kr",
         "THB" to "฿"
     )
+
+
+    // Keys for SharedPreferences
+    const val PREFS_NAME = "personal_finance_pro_settings"
+    const val KEY_CURRENCY_CODE = "currency_code"
+    const val KEY_AMOUNT_FORMAT = "amount_format"
+    const val KEY_DATE_FORMAT_PATTERN = "date_format_pattern"
 
 }

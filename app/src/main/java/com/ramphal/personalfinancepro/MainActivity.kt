@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.ramphal.personalfinancepro.navigation.AppNavigation
-import com.ramphal.personalfinancepro.ui.GraphPageView
 import com.ramphal.personalfinancepro.ui.theme.PersonalFinanceProTheme
 
 class MainActivity : ComponentActivity() {

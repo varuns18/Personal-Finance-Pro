@@ -1,5 +1,6 @@
 package com.ramphal.personalfinancepro.ui.add
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -81,11 +82,13 @@ import androidx.navigation.NavHostController
 import com.ramphal.personalfinancepro.Constant
 import com.ramphal.personalfinancepro.R
 import com.ramphal.personalfinancepro.data.TransactionModel
+import com.ramphal.personalfinancepro.ui.history.formatDateTime
 import com.ramphal.personalfinancepro.ui.home.CustomPrice
+import com.ramphal.personalfinancepro.ui.home.formatAmountComponents
+import com.ramphal.personalfinancepro.ui.settings.AmountFormattingSettings
 import com.ramphal.personalfinancepro.ui.theme.myFont
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -97,7 +100,9 @@ import java.time.format.DateTimeFormatter
 fun AddTransactionView(
     viewModel: AddTransactionViewModel,
     navController: NavHostController,
-    scope: CoroutineScope
+    scope: CoroutineScope,
+    amountFormattingSettings: AmountFormattingSettings,
+    currentDateFormat: String
 ) {
     val lazyListState = rememberLazyListState()
     var selectedIndex by remember { mutableIntStateOf(0) }
@@ -316,9 +321,10 @@ fun AddTransactionView(
                         )
                         AmountBox(
                             amount = amount,
-                            onAmountChange = {amount = it},
                             focusManager = focusManager,
                             focusRequester = focusRequester,
+                            onAmountChange = {amount = it},
+                            amountFormattingSettings = amountFormattingSettings
                         )
                         Text(
                             text = if (selectedIndex == 0) "Spent from" else if(selectedIndex == 1) "Received from" else "from (self transfer)",
@@ -352,7 +358,7 @@ fun AddTransactionView(
                             fontFamily = myFont,
                             modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
                         )
-                        DateSelected(date = dateSelected.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), onDateClick = {
+                        DateSelected(date = formatDateTime(dateSelected, dateFormatPattern = currentDateFormat), onDateClick = {
                             keyboardManager?.hide()
                             showDatePicker = true
                         })
@@ -586,14 +592,14 @@ fun BankGridItem(
                 .weight(1f),
             textAlign = TextAlign.Left
         )
-        CustomPrice(
-            sign = sign,
-            currency = currency,
-            amount = balance,
-            cFontSize = 16.sp,
-            aFontSize = 16.sp,
-            modifier = Modifier
-        )
+//        CustomPrice(
+//            sign = sign,
+//            currency = currency,
+//            amount = balance,
+//            cFontSize = 16.sp,
+//            aFontSize = 16.sp,
+//            modifier = Modifier
+//        )
     }
 }
 
@@ -704,7 +710,8 @@ fun DateSelected(
             .padding(bottom = 8.dp)
             .fillMaxWidth()
             .height(58.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
     ){
         Icon(
             imageVector = ImageVector.vectorResource(R.drawable.ic_calendar_24px),
@@ -727,11 +734,17 @@ fun DateSelected(
 @Composable
 fun AmountBox(
     amount: String,
-    currency: String = Constant.fallbackSymbols.getOrDefault("INR", "₹"),
     focusManager: FocusManager,
     focusRequester: FocusRequester,
-    onAmountChange: (String) -> Unit
+    onAmountChange: (String) -> Unit,
+    amountFormattingSettings: AmountFormattingSettings
 ){
+    val (sign, symbol, notamount) = remember(200) {
+        formatAmountComponents(
+            200.5,
+            settings = amountFormattingSettings,
+        )
+    }
     val haptic = LocalHapticFeedback.current
     var shakeState by remember { mutableStateOf(false) }
     OutlinedTextField(
@@ -763,7 +776,7 @@ fun AmountBox(
         shape = RoundedCornerShape(16.dp),
         prefix = {
             Text(
-                currency,
+                symbol,
                 fontFamily = myFont,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 22.sp
@@ -958,26 +971,6 @@ fun AddTransactionTopAppBar(onSaveClick: () -> Unit, onBackClick: () -> Unit) {
         }
     }
 }
-
-fun Long.toSqlTimestamp(): Timestamp =
-    Timestamp(this)
-
-fun Timestamp.toDisplayDate(
-    pattern: String = "dd/MM/yyyy",
-    zone: ZoneId   = ZoneId.systemDefault()
-): String {
-    val ldt = this.toInstant()
-        .atZone(zone)
-        .toLocalDateTime()
-    return ldt.format(DateTimeFormatter.ofPattern(pattern))
-}
-
-fun Timestamp.toLocalDateTime(): LocalDateTime =
-    // java.sql.Timestamp has its own toLocalDateTime(), but this is universal:
-    this.toInstant()
-        .atZone(ZoneId.systemDefault())
-        .toLocalDateTime()
-
 
 
 //@Preview(showBackground = true)
