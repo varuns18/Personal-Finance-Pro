@@ -14,6 +14,19 @@ data class TransactionModel(
     val timestamp: LocalDateTime,
     val amount: String,
     val note: String? = null,
+    val isScheduled: Boolean = false
+)
+
+@Entity(tableName = "Onboarding-Table")
+data class OnboardingModel(
+    @PrimaryKey
+    val id: Long = 0,
+    val preferredCurrencySymbol: String,
+    val bankBalance: Double,
+    val cashBalance: Double,
+    val savingsBalance: Double,
+    val hasCreditCard: Boolean = false,
+    val creditCardBalance: Double = 0.0,
 )
 
 data class CategoryItem(

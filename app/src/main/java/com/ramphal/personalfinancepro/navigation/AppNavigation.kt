@@ -8,20 +8,18 @@ import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext // Import LocalContext
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -42,13 +40,18 @@ import com.ramphal.personalfinancepro.ui.home.HomePageView
 import com.ramphal.personalfinancepro.ui.home.HomePageViewModel
 import com.ramphal.personalfinancepro.ui.settings.SettingsView
 import com.ramphal.personalfinancepro.ui.settings.SettingsViewModel
-import androidx.compose.runtime.collectAsState // Import collectAsState
+import androidx.compose.runtime.collectAsState
+import com.ramphal.personalfinancepro.Graph.transactionRepository
+import com.ramphal.personalfinancepro.ui.onboarding.OnboardingView
+import com.ramphal.personalfinancepro.ui.onboarding.OnboardingViewModel
 import com.ramphal.personalfinancepro.ui.settings.AmountFormattingSettings
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 
 @Composable
 fun AppNavigation(
-    // Keep other ViewModels as they are, or if you prefer to instantiate them centrally, do so.
     homePageViewModel: HomePageViewModel = viewModel<HomePageViewModel>(),
     addTransactionViewModel: AddTransactionViewModel = viewModel<AddTransactionViewModel>(),
     transactionHistoryViewModel: TransactionHistoryViewModel = viewModel<TransactionHistoryViewModel>(),
@@ -56,28 +59,25 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
 ){
     val scope = rememberCoroutineScope()
-    var selectedItem: Int by remember { mutableIntStateOf(0) }
     var bottomBarVisibility by remember { mutableStateOf(true) }
+    var floatingTabVisibility by remember { mutableStateOf(false) }
 
-    // --- Instantiate SettingsViewModel and collect its state once here ---
     val application = LocalContext.current.applicationContext as Application
-    val settingsViewModel: SettingsViewModel = viewModel(
-        factory = SettingsViewModel.Factory(application)
-    )
+    val settingsViewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory(application))
+    val onboardingViewModel: OnboardingViewModel = viewModel(factory = OnboardingViewModel.Factory(application))
 
-    // Collect the individual StateFlows as Compose State
     val currentCurrencyCode by settingsViewModel.currentCurrencyCode.collectAsState()
     val currentAmountFormat by settingsViewModel.currentAmountFormat.collectAsState()
     val currentDateFormat by settingsViewModel.currentDateFormatPattern.collectAsState()
+    val isLoadingCurrency by settingsViewModel.isLoadingCurrency.collectAsState()
+    val isOnboardingComplete = onboardingViewModel.isOnboardingComplete()
 
-    // Access the fixed values directly from the ViewModel instance
     val fixedDecimalPlaces = settingsViewModel.fixedDecimalPlaces
     val fixedCurrencyPosition = settingsViewModel.fixedCurrencyPosition
     val snackbarHostState = remember { SnackbarHostState() }
 
 
-    // Create the AmountFormattingSettings object to pass around
-    val amountFormattingSettings = remember(currentCurrencyCode, currentAmountFormat) { // Remember for stability
+    val amountFormattingSettings = remember(currentCurrencyCode, currentAmountFormat) {
         AmountFormattingSettings(
             preferredCurrencyCode = currentCurrencyCode,
             currencyPosition = fixedCurrencyPosition,
@@ -85,8 +85,6 @@ fun AppNavigation(
             decimalPlaces = fixedDecimalPlaces
         )
     }
-    // --- End SettingsViewModel setup ---
-
 
     val barItems = listOf(
         BarItem(
@@ -117,13 +115,15 @@ fun AppNavigation(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState)
-        },
         floatingActionButton = {
-            if (selectedItem == 0){
+            AnimatedVisibility(floatingTabVisibility) {
                 ExtendedFABM3(expanded = true, onClick = { navController.navigate(Screen.addTransaction.route) })
             }
+        },
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+            )
         },
         bottomBar = {
             AnimatedVisibility(visible = bottomBarVisibility) {
@@ -133,63 +133,119 @@ fun AppNavigation(
     ){padding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.homePage.route
-        ){
+            startDestination = if (isOnboardingComplete) Screen.homePage.route else Screen.onboarding.route,
+            modifier = Modifier.padding(padding)
+        ) {
+
+            composable(route = Screen.onboarding.route) {
+                OnboardingView(
+                    onSetupComplete = {
+                        onboardingViewModel.setOnboardingComplete(isComplete = true)
+                        scope.launch {
+                            val onboardingData = transactionRepository.getOnboardingData(0).firstOrNull()
+                            onboardingData?.let {
+                                settingsViewModel.setCurrencyCode(it.preferredCurrencySymbol)
+                            }
+                        }
+                        navController.navigate(Screen.homePage.route) {
+                            popUpTo(Screen.onboarding.route) { inclusive = true }
+                        }
+                    },
+                    onboardingViewModel = onboardingViewModel,
+                )
+                bottomBarVisibility = false
+                floatingTabVisibility = false
+            }
 
             composable(route = Screen.homePage.route) {
                 HomePageView(
-                    navController = navController,
                     viewModel = homePageViewModel,
-                    modifier = Modifier.padding(padding),
                     onSeeAllClick = {navController.navigate(Screen.transactionHistory.route)},
-                    amountFormattingSettings = amountFormattingSettings ,
+                    amountFormattingSettings = amountFormattingSettings,
+                    onEditClick = { id ->
+                        navController.navigate("${Screen.addTransaction.route}?transactionId=${id}")
+                    },
+                    message = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = it,
+                                withDismissAction = true
+                            )
+                        }
+                    }
                 )
                 bottomBarVisibility = true
-                selectedItem = 0
+                floatingTabVisibility = true
             }
 
             composable(route = Screen.chartPage.route) {
-                // Pass the amountFormattingSettings to GraphPageView
                 GraphPageView(
-                    modifier = Modifier.padding(padding),
                     viewModel = graphPageViewModel,
-                    amountFormattingSettings = amountFormattingSettings // Pass the settings
+                    amountFormattingSettings = amountFormattingSettings
                 )
                 bottomBarVisibility = true
-                selectedItem = 1
+                floatingTabVisibility = false
             }
 
-            composable(route = Screen.addTransaction.route) {
-                // Pass the amountFormattingSettings to AddTransactionView
+            // --- UPDATED: Define route for AddTransaction to accept optional transactionId ---
+            composable(
+                route = "${Screen.addTransaction.route}?transactionId={transactionId}",
+                arguments = listOf(
+                    navArgument("transactionId") {
+                        type = NavType.LongType
+                        defaultValue = -1L // Default value for new transactions
+                    }
+                )
+            ) { backStackEntry ->
+                val transactionId = backStackEntry.arguments?.getLong("transactionId") ?: -1L
                 AddTransactionView(
                     navController = navController,
                     viewModel = addTransactionViewModel,
-                    scope = scope,
+                    transactionId = transactionId,
                     amountFormattingSettings = amountFormattingSettings,
-                    currentDateFormat = currentDateFormat
+                    currentDateFormat = currentDateFormat,
+                    message = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = it,
+                                withDismissAction = true
+                            )
+                        }
+                    }
                 )
                 bottomBarVisibility = false
+                floatingTabVisibility = false
             }
+            // --- END UPDATED ADD TRANSACTION ROUTE ---
+
             composable(route = Screen.transactionHistory.route) {
-                // Pass the amountFormattingSettings to TransactionHistoryView
                 TransactionHistoryView(
                     viewModel = transactionHistoryViewModel,
                     navController = navController,
-                    modifier = Modifier.padding(padding),
                     amountFormattingSettings = amountFormattingSettings,
-                    currentDateFormat = currentDateFormat
+                    currentDateFormat = currentDateFormat,
+                    onEditClick = { id ->
+                        navController.navigate("${Screen.addTransaction.route}?transactionId=${id}")
+                    },
+                    message = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar(
+                                message = it,
+                                withDismissAction = true
+                            )
+                        }
+                    }
                 )
                 bottomBarVisibility = true
-                selectedItem = 2
+                floatingTabVisibility = false
             }
             composable(route = Screen.settings.route) {
                 SettingsView(
                     navController = navController,
-                    modifier = Modifier.padding(padding),
-                    settingsViewModel = settingsViewModel // Pass the ViewModel here
+                    settingsViewModel = settingsViewModel,
                 )
                 bottomBarVisibility = true
-                selectedItem = 3
+                floatingTabVisibility = false
             }
         }
     }

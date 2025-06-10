@@ -514,7 +514,7 @@ fun ReusablePieChart(
             factory = { context ->
                 PieChart(context).apply {
                     layoutParams = LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                     )
                     description.isEnabled = false

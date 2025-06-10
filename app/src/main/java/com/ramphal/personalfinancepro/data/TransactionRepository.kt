@@ -6,11 +6,30 @@ import java.time.ZoneOffset
 
 class TransactionRepository(private val transactionDao: TransactionDao) {
 
+    suspend fun addOnboardingData(onboardingModel: OnboardingModel){
+        transactionDao.addOnboardingData(onboardingModel)
+    }
+
+    fun getOnboardingData(id: Int): Flow<OnboardingModel>{
+        return transactionDao.getOnboardingData(id = id)
+    }
+
+    suspend fun updateOnboardingData(onboardingModel: OnboardingModel){
+        transactionDao.updateOnboardingData(onboardingModel)
+    }
+
+    val todaysTotalExpense: Flow<Double>  = transactionDao.getTodaysTotalExpense()
+
     suspend fun addTransaction(transactionModel: TransactionModel){
         transactionDao.addTransaction(transactionModel)
     }
 
     fun getAllTransactions(): Flow<List<TransactionModel>> = transactionDao.getAllTransactions()
+
+    fun getCompletedScheduledTransactions(currentDateTime: LocalDateTime): Flow<List<TransactionModel>> {
+        val currentMillis = currentDateTime.toInstant(ZoneOffset.UTC).toEpochMilli()
+        return transactionDao.getCompletedScheduledTransactions(currentMillis)
+    }
 
     fun getThisMonthTransactions(): Flow<List<TransactionModel>> = transactionDao.getThisMonthTransactions()
 

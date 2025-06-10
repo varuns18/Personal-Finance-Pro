@@ -3,4 +3,5 @@
     <color name="red_contrast">#FFD32F2F</color>
     <color name="green_contrast">#FF388E3C</color>
     <color name="onSurface">#191C20</color>
+    <color name="surface">#FFF9F9FF</color>
 </resources>

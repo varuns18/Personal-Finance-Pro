@@ -39,19 +39,18 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +68,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.TextStyle
@@ -78,17 +78,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.ramphal.personalfinancepro.Constant
 import com.ramphal.personalfinancepro.R
+import com.ramphal.personalfinancepro.data.OnboardingModel
 import com.ramphal.personalfinancepro.data.TransactionModel
 import com.ramphal.personalfinancepro.ui.history.formatDateTime
 import com.ramphal.personalfinancepro.ui.home.CustomPrice
 import com.ramphal.personalfinancepro.ui.home.formatAmountComponents
 import com.ramphal.personalfinancepro.ui.settings.AmountFormattingSettings
 import com.ramphal.personalfinancepro.ui.theme.myFont
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -100,9 +100,10 @@ import java.time.format.DateTimeFormatter
 fun AddTransactionView(
     viewModel: AddTransactionViewModel,
     navController: NavHostController,
-    scope: CoroutineScope,
     amountFormattingSettings: AmountFormattingSettings,
-    currentDateFormat: String
+    currentDateFormat: String,
+    message: (String) -> Unit,
+    transactionId: Long
 ) {
     val lazyListState = rememberLazyListState()
     var selectedIndex by remember { mutableIntStateOf(0) }
@@ -110,7 +111,17 @@ fun AddTransactionView(
     var note by remember { mutableStateOf("") }
     var dateSelected by remember { mutableStateOf(LocalDateTime.now())}
     var showDatePicker by remember { mutableStateOf(false) }
-
+    var overallBalance = viewModel.getOverallBalance().collectAsState(
+        initial = OnboardingModel(
+            id = 0,
+            preferredCurrencySymbol = "$",
+            bankBalance = 0.0,
+            cashBalance = 0.0,
+            savingsBalance = 0.0,
+            hasCreditCard = false,
+            creditCardBalance = 0.0
+        )
+    )
 
     var transactionFromIndex by remember { mutableIntStateOf(0) }
     var transactionFromName by remember { mutableStateOf("Account") }
@@ -129,17 +140,16 @@ fun AddTransactionView(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardManager = LocalSoftwareKeyboardController.current
-    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(selectedIndex) {
-        if (selectedIndex == 0){
+        if (selectedIndex == 0) {
             transactionFromIndex = 0
             transactionFromName = "Bank"
             transactionFromIcon = R.drawable.ic_bank_account_24px
             transactionToIndex = -1
             transactionToName = "Category"
             transactionToIcon = R.drawable.ic_category_24px
-        } else if (selectedIndex == 1){
+        } else if (selectedIndex == 1) {
             transactionFromIndex = -1
             transactionFromName = "Category"
             transactionFromIcon = R.drawable.ic_category_24px
@@ -153,6 +163,37 @@ fun AddTransactionView(
             transactionToIndex = 0
             transactionToName = "Bank"
             transactionToIcon = R.drawable.ic_bank_account_24px
+        }
+    }
+
+    var editModeData: TransactionModel? = null
+
+    if (transactionId != -1L){
+        editModeData = viewModel.getTransactionById(transactionId).collectAsState(initial = null).value
+        if (editModeData != null) {
+            amount = editModeData.amount
+            note = editModeData.note ?: ""
+            dateSelected = editModeData.timestamp
+            selectedIndex = if (editModeData.type == "Expense") 0 else if (editModeData.type == "Income") 1 else 2
+            transactionFromIndex = editModeData.from
+            transactionToIndex = editModeData.to
+            if (selectedIndex == 0){
+                transactionFromName = Constant.accountItems[transactionFromIndex].name
+                transactionToName = Constant.categories[transactionToIndex].name
+                transactionFromIcon = Constant.accountItems[transactionFromIndex].icon
+                transactionToIcon = Constant.categories[transactionToIndex].icon
+            }else if (selectedIndex == 1){
+                transactionFromName = Constant.incomeCat[transactionFromIndex].name
+                transactionToName = Constant.accountItems[transactionToIndex].name
+                transactionFromIcon = Constant.incomeCat[transactionFromIndex].icon
+                transactionToIcon = Constant.accountItems[transactionToIndex].icon
+            } else{
+                transactionFromName = Constant.accountItems[transactionFromIndex].name
+                transactionToName = Constant.accountItems[transactionToIndex].name
+                transactionFromIcon = Constant.accountItems[transactionFromIndex].icon
+                transactionToIcon = Constant.accountItems[transactionToIndex].icon
+            }
+
         }
     }
 
@@ -198,98 +239,49 @@ fun AddTransactionView(
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
-    Scaffold(
+    Surface(
         modifier = Modifier.fillMaxSize(),
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState)
-        }
-    ){innerPadding->
+    ){
         LazyColumn(
-            modifier = Modifier.padding(innerPadding),
             state = lazyListState
         ) {
             stickyHeader {
                 AddTransactionTopAppBar(
                     onBackClick = { navController.navigateUp() },
                     onSaveClick = {
-                    if (selectedIndex == 0){
-                        if (amount.isEmpty()) {
-                            scope.launch {
-                                keyboardManager?.hide()
-                                snackbarHostState.showSnackbar(
-                                    message = "Please enter amount",
-                                    duration = SnackbarDuration.Short
-                                )
-                            }
-                        }else if (transactionToIndex == -1){
-                            scope.launch {
-                                keyboardManager?.hide()
-                                snackbarHostState.showSnackbar(message = "Please select category", duration = SnackbarDuration.Short)
-                            }
-                        }else{
-                            viewModel.addTransaction(
-                                TransactionModel(
-                                    type = if (selectedIndex == 0) "Expense" else if (selectedIndex == 1) "Income" else "Transfer",
-                                    from = transactionFromIndex,
-                                    to = transactionToIndex,
-                                    timestamp = dateSelected,
-                                    amount = amount,
-                                    note = note,
-                                )
+                        if (transactionId == -1L){
+                            savaNewTransaction(
+                                amount = amount,
+                                keyboardManager = keyboardManager,
+                                message = message,
+                                selectedIndex = selectedIndex,
+                                transactionFromIndex = transactionFromIndex,
+                                transactionToIndex = transactionToIndex,
+                                dateSelected = dateSelected,
+                                navController = navController,
+                                overallBalance = overallBalance,
+                                viewModel = viewModel,
+                                note = note
                             )
-                            navController.navigateUp()
-                        }
-                    } else if (selectedIndex == 1){
-                        if (amount.isEmpty()) {
-                            scope.launch {
-                                keyboardManager?.hide()
-                                snackbarHostState.showSnackbar(
-                                    message = "Please enter amount",
-                                    duration = SnackbarDuration.Short
-                                )
-                            }
-                        }else if (transactionFromIndex == -1){
-                            scope.launch {
-                                keyboardManager?.hide()
-                                snackbarHostState.showSnackbar(message = "Please select category", duration = SnackbarDuration.Short)
-                            }
-                        }else{
-                            viewModel.addTransaction(
-                                TransactionModel(
-                                    type = if (selectedIndex == 0) "Expense" else if (selectedIndex == 1) "Income" else "Transfer",
-                                    from = transactionFromIndex,
-                                    to = transactionToIndex,
-                                    timestamp = dateSelected,
-                                    amount = amount,
-                                    note = note
-                                )
+                        }else {
+                            updateTransaction(
+                                amount = amount,
+                                keyboardManager = keyboardManager,
+                                message = message,
+                                selectedIndex = selectedIndex,
+                                transactionFromIndex = transactionFromIndex,
+                                transactionToIndex = transactionToIndex,
+                                dateSelected = dateSelected,
+                                navController = navController,
+                                overallBalance = overallBalance,
+                                viewModel = viewModel,
+                                note = note,
+                                editModeData = editModeData
                             )
-                            navController.navigateUp()
                         }
-                    } else{
-                        if (amount.isEmpty()) {
-                            scope.launch {
-                                keyboardManager?.hide()
-                                snackbarHostState.showSnackbar(
-                                    message = "Please enter amount",
-                                    duration = SnackbarDuration.Short
-                                )
-                            }
-                        }else{
-                            viewModel.addTransaction(
-                                TransactionModel(
-                                    type = if (selectedIndex == 0) "Expense" else if (selectedIndex == 1) "Income" else "Transfer",
-                                    from = transactionFromIndex,
-                                    to = transactionToIndex,
-                                    timestamp = dateSelected,
-                                    amount = amount,
-                                    note = note
-                                )
-                            )
-                            navController.navigateUp()
-                        }
+
                     }
-                })
+                )
             }
             stickyHeader {
                 Card(
@@ -389,28 +381,37 @@ fun AddTransactionView(
                         }
                         if (openBankBottomSheet){
                             BankBottomSheet(
+                                showCreditOption = {
+                                    if (selectedIndex == 0) true
+                                    else false
+                                },
                                 bottomSheetState = catBottomSheetState,
                                 onDismissRequest = { openBankBottomSheet = false },
                                 onItemClick = {
-                                    if (selectedIndex == 0){
+                                    if (selectedIndex == 0) {
                                         transactionFromIndex = it
                                         transactionFromIcon = Constant.accountItems[it].icon
                                         transactionFromName = Constant.accountItems[it].name
-                                    } else if (selectedIndex == 1){
+                                    } else if (selectedIndex == 1) {
                                         transactionToIndex = it
                                         transactionToIcon = Constant.accountItems[it].icon
                                         transactionToName = Constant.accountItems[it].name
-                                    } else{
+                                    } else {
                                         transactionFromIndex = it
                                         transactionFromIcon = Constant.accountItems[it].icon
                                         transactionFromName = Constant.accountItems[it].name
                                     }
                                     openBankBottomSheet = false
-                                }
+                                },
+                                overallBalance = overallBalance.value,
+                                settings = amountFormattingSettings
                             )
                         }
                         if (openBankBottomSheet2){
                             BankBottomSheet(
+                                showCreditOption = {
+                                    false
+                                },
                                 bottomSheetState = catBottomSheetState,
                                 onDismissRequest = { openBankBottomSheet2 = false },
                                 onItemClick = {
@@ -418,7 +419,10 @@ fun AddTransactionView(
                                     transactionToIcon = Constant.accountItems[it].icon
                                     transactionToName = Constant.accountItems[it].name
                                     openBankBottomSheet2 = false
-                                }
+                                },
+                                showSavingOption = { false },
+                                overallBalance = overallBalance.value,
+                                settings = amountFormattingSettings
                             )
                         }
                         if (openIncomeCatBottomSheet){
@@ -515,9 +519,13 @@ fun IncomeCatGridItem(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BankBottomSheet(
+    showCreditOption: () -> Boolean = { false },
+    showSavingOption: () -> Boolean = { false },
     bottomSheetState: SheetState,
     onDismissRequest: () -> Unit,
-    onItemClick: (Int) -> Unit
+    onItemClick: (Int) -> Unit,
+    overallBalance: OnboardingModel,
+    settings: AmountFormattingSettings
 ){
     ModalBottomSheet(
         sheetState = bottomSheetState,
@@ -535,18 +543,39 @@ fun BankBottomSheet(
             }
         }
     ){
-        LazyColumn(
-            state = rememberLazyListState(),
+        Column(
             modifier = Modifier.padding(start = 4.dp, end = 8.dp)
         ) {
-            items(Constant.accountItems.size){
+            BankGridItem(
+                icon = Constant.accountItems[0].icon,
+                text = Constant.accountItems[0].name,
+                balance = overallBalance.bankBalance,
+                onItemClick = { onItemClick(0) },
+                settings = settings
+            )
+            if (showSavingOption()){
                 BankGridItem(
-                    icon = Constant.accountItems[it].icon,
-                    text = Constant.accountItems[it].name,
-                    balance = Constant.accountItems[it].balance,
-                    sign = Constant.accountItems[it].sign,
-                    currency = Constant.accountItems[it].currency,
-                    onItemClick = { onItemClick(it) }
+                    icon = Constant.accountItems[1].icon,
+                    text = Constant.accountItems[1].name,
+                    balance = overallBalance.savingsBalance,
+                    onItemClick = { onItemClick(1) },
+                    settings = settings
+                )
+            }
+            BankGridItem(
+                icon = Constant.accountItems[2].icon,
+                text = Constant.accountItems[2].name,
+                balance = overallBalance.cashBalance,
+                onItemClick = { onItemClick(2) },
+                settings = settings
+            )
+            if (showCreditOption()){
+                BankGridItem(
+                    icon = Constant.accountItems[3].icon,
+                    text = Constant.accountItems[3].name,
+                    balance = overallBalance.creditCardBalance,
+                    onItemClick = { onItemClick(3) },
+                    settings = settings
                 )
             }
         }
@@ -558,10 +587,15 @@ fun BankGridItem(
     icon: Int,
     text: String,
     onItemClick: () -> Unit,
-    balance: String = "0.00",
-    sign: String = "",
-    currency: String = Constant.fallbackSymbols.getOrDefault("INR", "₹")
+    balance: Double,
+    settings: AmountFormattingSettings
 ){
+    val (sign, symbol, amount) = remember(settings) { // Added totalBalance as a key
+        formatAmountComponents(
+            balance,
+            settings = settings,
+        )
+    }
     Row(
         modifier = Modifier
             .padding(8.dp)
@@ -592,14 +626,14 @@ fun BankGridItem(
                 .weight(1f),
             textAlign = TextAlign.Left
         )
-//        CustomPrice(
-//            sign = sign,
-//            currency = currency,
-//            amount = balance,
-//            cFontSize = 16.sp,
-//            aFontSize = 16.sp,
-//            modifier = Modifier
-//        )
+        CustomPrice(
+            sign = sign,
+            currency = symbol,
+            amount = amount,
+            cFontSize = 16.sp,
+            aFontSize = 16.sp,
+            modifier = Modifier
+        )
     }
 }
 
@@ -966,6 +1000,401 @@ fun AddTransactionTopAppBar(onSaveClick: () -> Unit, onBackClick: () -> Unit) {
                         painter = painterResource(R.drawable.ic_save_24px),
                         contentDescription = null
                     )
+                }
+            }
+        }
+    }
+}
+
+fun updateBalanceForAccount(
+    currentOnboarding: OnboardingModel,
+    accountIndex: Int,
+    amount: Double // This amount can be positive (for additions) or negative (for deductions)
+): OnboardingModel {
+    return when (accountIndex) {
+        0 -> currentOnboarding.copy(bankBalance = currentOnboarding.bankBalance + amount)
+        1 -> currentOnboarding.copy(savingsBalance = currentOnboarding.savingsBalance + amount)
+        2 -> currentOnboarding.copy(cashBalance = currentOnboarding.cashBalance + amount)
+        3 -> currentOnboarding.copy(creditCardBalance = currentOnboarding.creditCardBalance + amount)
+        else -> currentOnboarding // Fallback for unexpected index; consider throwing an error if strict
+    }
+}
+
+fun updateTransaction(
+    amount: String,
+    keyboardManager: SoftwareKeyboardController?,
+    message: (String) -> Unit,
+    selectedIndex: Int,
+    transactionFromIndex: Int,
+    transactionToIndex: Int,
+    dateSelected: LocalDateTime,
+    navController: NavController,
+    overallBalance: State<OnboardingModel>, // Consider passing overallBalance as a ViewModel state
+    viewModel: AddTransactionViewModel, // This function should ideally be part of the ViewModel
+    note: String,
+    editModeData: TransactionModel?,
+) {
+    val now = LocalDateTime.now()
+    val parsedAmount = amount.toDoubleOrNull()
+
+    // --- 1. Initial Input Validation ---
+    if (amount.isEmpty()) {
+        keyboardManager?.hide()
+        message("Please enter amount")
+        return // Exit early
+    } else if (parsedAmount == null || parsedAmount <= 0.0) {
+        keyboardManager?.hide()
+        message("Please enter a valid amount greater than 0")
+        return // Exit early
+    }
+
+    // Ensure we are in edit mode, otherwise this function's purpose is not met.
+    if (editModeData == null) {
+        message("Error: No transaction data to edit.")
+        return
+    }
+
+    val newTransactionType = when (selectedIndex) {
+        0 -> "Expense"
+        1 -> "Income"
+        else -> "Transfer"
+    }
+
+    // --- 2. Type-Specific Validation ---
+    when (newTransactionType) {
+        "Expense" -> {
+            if (transactionToIndex == -1) { // 'to' is category for Expense
+                keyboardManager?.hide()
+                message("Please select category")
+                return
+            }
+            if (transactionFromIndex == 9 && transactionToIndex == 1) {
+                keyboardManager?.hide()
+                message("Please select different category or different account")
+                return
+            }
+            if (transactionFromIndex == 10 && transactionToIndex == 4) {
+                keyboardManager?.hide()
+                message("Please select different category or different account")
+                return
+            }
+        }
+        "Income" -> {
+            if (transactionFromIndex == -1) { // 'from' is category for Income
+                keyboardManager?.hide()
+                message("Please select category")
+                return
+            }
+        }
+        "Transfer" -> {
+            if (transactionFromIndex == -1 || transactionToIndex == -1) {
+                keyboardManager?.hide()
+                message("Please select both 'From' and 'To' accounts")
+                return
+            } else if (transactionFromIndex == transactionToIndex) {
+                keyboardManager?.hide()
+                message("'From' and 'To' accounts cannot be the same")
+                return
+            }
+        }
+    }
+
+    val newIsScheduled = dateSelected.isAfter(now)
+    var updatedOverallBalance = overallBalance.value.copy()
+
+    // --- 3. Revert Old Transaction's Balance Impact (if it was a completed transaction) ---
+    val oldTxWasCompleted = !editModeData.isScheduled
+    if (oldTxWasCompleted) {
+        updatedOverallBalance = reverseBalanceImpact(updatedOverallBalance, editModeData)
+    }
+
+    // --- 4. Apply New Transaction's Balance Impact (if the new transaction is completed) ---
+    if (!newIsScheduled) { // Only apply if the new transaction is not scheduled for the future
+        updatedOverallBalance = applyBalanceImpact(
+            currentOnboarding = updatedOverallBalance,
+            type = newTransactionType,
+            fromIndex = transactionFromIndex,
+            toIndex = transactionToIndex,
+            amount = parsedAmount
+        )
+    }
+
+    // --- 5. Update Overall Balance in Database (if any changes were made that affect balance) ---
+    // Update balance if the old transaction was completed OR if the new transaction is completed
+    val shouldUpdateOverallBalanceDb = oldTxWasCompleted || !newIsScheduled
+    if (shouldUpdateOverallBalanceDb) {
+        viewModel.updateOverallBalance(updatedOverallBalance)
+    }
+
+    // --- 6. Create Updated Transaction Model and Save to Database ---
+    val transactionToSave = TransactionModel(
+        id = editModeData.id, // Keep the original ID
+        type = newTransactionType,
+        from = transactionFromIndex,
+        to = transactionToIndex,
+        timestamp = dateSelected,
+        amount = amount, // Use the string amount
+        note = note.trim(),
+        isScheduled = newIsScheduled // Set based on the new date
+    )
+
+    // Call ViewModel to update the transaction in the database
+    viewModel.updateTransaction(transactionToSave) // This should be a suspend function in ViewModel
+
+    // --- 7. Final User Feedback and Navigation ---
+    keyboardManager?.hide()
+    if (transactionToSave.isScheduled) {
+        message("Transaction scheduled for ${dateSelected.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}")
+    } else {
+        message("Transaction updated successfully!")
+    }
+    navController.navigateUp() // Go back to the previous screen
+
+
+}
+
+fun reverseBalanceImpact(currentOnboarding: OnboardingModel, oldTx: TransactionModel): OnboardingModel {
+    var updatedModel = currentOnboarding.copy()
+    val oldAmount = oldTx.amount.toDouble()
+    when (oldTx.type) {
+        "Expense" -> {
+            // Old Expense deducted from 'from' account. Add it back.
+            updatedModel = updateBalanceForAccount(updatedModel, oldTx.from, oldAmount)
+        }
+        "Income" -> {
+            // Old Income added to 'to' account. Deduct it.
+            updatedModel = updateBalanceForAccount(updatedModel, oldTx.to, -oldAmount)
+        }
+        "Transfer" -> {
+            // Old Transfer deducted from 'from' and added to 'to'.
+            // Reverse: add back to 'from', deduct from 'to'.
+            updatedModel = updateBalanceForAccount(updatedModel, oldTx.from, oldAmount)
+            updatedModel = updateBalanceForAccount(updatedModel, oldTx.to, -oldAmount)
+        }
+    }
+    return updatedModel
+}
+
+fun applyBalanceImpact(
+    currentOnboarding: OnboardingModel,
+    type: String,
+    fromIndex: Int,
+    toIndex: Int,
+    amount: Double
+): OnboardingModel {
+    var updatedModel = currentOnboarding.copy()
+    when (type) {
+        "Expense" -> {
+            // Expense: deduct from 'from' account
+            updatedModel = updateBalanceForAccount(updatedModel, fromIndex, -amount)
+        }
+        "Income" -> {
+            // Income: add to 'to' account
+            updatedModel = updateBalanceForAccount(updatedModel, toIndex, amount)
+        }
+        "Transfer" -> {
+            // Transfer: deduct from 'from', add to 'to'
+            updatedModel = updateBalanceForAccount(updatedModel, fromIndex, -amount)
+            updatedModel = updateBalanceForAccount(updatedModel, toIndex, amount)
+        }
+    }
+    return updatedModel
+}
+
+fun savaNewTransaction(
+    amount: String,
+    keyboardManager:  SoftwareKeyboardController?,
+    message: (String) -> Unit,
+    selectedIndex: Int,
+    transactionFromIndex: Int,
+    transactionToIndex: Int,
+    dateSelected: LocalDateTime,
+    navController: NavController,
+    overallBalance: State<OnboardingModel>,
+    viewModel: AddTransactionViewModel,
+    note: String,
+){
+    val now = LocalDateTime.now()
+    val parsedAmount = amount.toDoubleOrNull()
+    if (amount.isEmpty()) {
+        keyboardManager?.hide()
+        message("Please enter amount")
+    } else if (parsedAmount == null || parsedAmount <= 0.0) {
+        keyboardManager?.hide()
+        message("Please enter a valid amount greater than 0")
+    } else{
+        when (selectedIndex) {
+            0 -> { // --- Expense ---
+                if (transactionToIndex == -1) { // 'to' is category for Expense
+                    keyboardManager?.hide()
+                    message("Please select category")
+                } else if (transactionFromIndex == 9 && transactionToIndex == 1){
+                    keyboardManager?.hide()
+                    message("Please select different category or different account")
+                } else if (transactionFromIndex == 10 && transactionToIndex == 4){
+                    keyboardManager?.hide()
+                    message("Please select different category or different account")
+                } else {
+                    if (dateSelected.isAfter(now)) {
+                        // --- UPCOMING Expense ---
+                        viewModel.addTransaction(
+                            TransactionModel(
+                                type = "Expense",
+                                from = transactionFromIndex,
+                                to = transactionToIndex,
+                                timestamp = dateSelected,
+                                amount = parsedAmount.toString(),
+                                note = note.trim(),
+                                isScheduled = true
+                            )
+                        )
+                        keyboardManager?.hide()
+                        message("Expense scheduled for ${dateSelected.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}")
+                        navController.navigateUp()
+                    } else {
+                        // --- COMPLETED Expense ---
+                        val onboardingModel = overallBalance.value // Get current balance
+                        var updatedOnboardingModel = onboardingModel.copy()
+
+                        updatedOnboardingModel = updateBalanceForAccount(
+                            currentOnboarding = updatedOnboardingModel,
+                            accountIndex = transactionFromIndex,
+                            amount = -parsedAmount // Deduct from the 'from' account
+                        )
+                        viewModel.updateOverallBalance(updatedOnboardingModel)
+
+                        viewModel.addTransaction(
+                            TransactionModel(
+                                type = "Expense",
+                                from = transactionFromIndex,
+                                to = transactionToIndex,
+                                timestamp = dateSelected,
+                                amount = parsedAmount.toString(),
+                                note = note.trim(),
+                                isScheduled = false
+                            )
+                        )
+                        keyboardManager?.hide()
+                        message("Expense added successfully!")
+                        navController.navigateUp()
+                    }
+                }
+            }
+
+            1 -> { // --- Income ---
+                if (transactionFromIndex == -1) { // 'from' is category for Income
+                    keyboardManager?.hide()
+                    message("Please select category")
+                } else {
+                    if (dateSelected.isAfter(now)) {
+                        // --- UPCOMING Income ---
+                        viewModel.addTransaction(
+                            TransactionModel(
+                                type = "Income", // Type remains "Income"
+                                from = transactionFromIndex, // Category for income
+                                to = transactionToIndex, // Account where income is added
+                                timestamp = dateSelected,
+                                amount = parsedAmount.toString(), // Use the parsed Double amount
+                                note = note.trim(),
+                                isScheduled = true // Mark as scheduled
+                            )
+                        )
+                        keyboardManager?.hide()
+                        message("Income scheduled for ${dateSelected.format(DateTimeFormatter.ofPattern("dd MMM yyyy"))}")
+                        navController.navigateUp()
+                    } else {
+                        // --- COMPLETED Income ---
+                        val onboardingModel = overallBalance.value // Get current balance
+                        var updatedOnboardingModel = onboardingModel.copy()
+
+                        updatedOnboardingModel = updateBalanceForAccount(
+                            currentOnboarding = updatedOnboardingModel,
+                            accountIndex = transactionToIndex, // Add to the 'to' account
+                            amount = parsedAmount // Add the amount
+                        )
+                        viewModel.updateOverallBalance(updatedOnboardingModel)
+
+                        viewModel.addTransaction(
+                            TransactionModel(
+                                type = "Income",
+                                from = transactionFromIndex,
+                                to = transactionToIndex,
+                                timestamp = dateSelected,
+                                amount = parsedAmount.toString(), // Use the parsed Double amount
+                                note = note.trim(),
+                                isScheduled = false // Not scheduled
+                            )
+                        )
+                        keyboardManager?.hide()
+                        message("Income added successfully!")
+                        navController.navigateUp()
+                    }
+                }
+            }
+
+            else -> {
+                if (transactionFromIndex == transactionToIndex) {
+                    keyboardManager?.hide()
+                    message("'From' and 'To' accounts cannot be the same")
+                } else {
+                    if (dateSelected.isAfter(now)) {
+                        // --- UPCOMING Income ---
+                        viewModel.addTransaction(
+                            TransactionModel(
+                                type = "Transfer", // Type is "Transfer"
+                                from = transactionFromIndex,
+                                to = transactionToIndex,
+                                timestamp = dateSelected, // Transfer date
+                                amount = parsedAmount.toString(), // Use the parsed Double amount
+                                note = note.trim(),
+                                isScheduled = true // Mark as scheduled
+                            )
+                        )
+                        keyboardManager?.hide()
+                        message(
+                            "Self Transfer scheduled for ${
+                                dateSelected.format(
+                                    DateTimeFormatter.ofPattern("dd MMM yyyy")
+                                )
+                            }"
+                        )
+                        navController.navigateUp()
+                    } else {
+                        // --- Transfers are typically immediate and not scheduled in this flow ---
+                        // If you want scheduled transfers, you'd apply similar date checks as above.
+                        val onboardingModel =
+                            overallBalance.value // Get current balance
+                        var updatedOnboardingModel = onboardingModel.copy()
+
+                        // Deduct from 'From' account
+                        updatedOnboardingModel = updateBalanceForAccount(
+                            currentOnboarding = updatedOnboardingModel,
+                            accountIndex = transactionFromIndex,
+                            amount = -parsedAmount
+                        )
+                        // Add to 'To' account
+                        updatedOnboardingModel = updateBalanceForAccount(
+                            currentOnboarding = updatedOnboardingModel,
+                            accountIndex = transactionToIndex,
+                            amount = parsedAmount
+                        )
+                        viewModel.updateOverallBalance(updatedOnboardingModel)
+
+                        viewModel.addTransaction(
+                            TransactionModel(
+                                type = "Transfer", // Type is "Transfer"
+                                from = transactionFromIndex,
+                                to = transactionToIndex,
+                                timestamp = dateSelected, // Transfer date
+                                amount = parsedAmount.toString(), // Use the parsed Double amount
+                                note = note.trim(),
+                                isScheduled = false // Transfers are assumed immediate unless explicitly handled otherwise
+                            )
+                        )
+                        keyboardManager?.hide()
+                        message("Transfer added successfully!")
+                        navController.navigateUp()
+                    }
                 }
             }
         }

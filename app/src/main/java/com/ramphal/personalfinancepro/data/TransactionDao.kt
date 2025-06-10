@@ -14,17 +14,37 @@ abstract class TransactionDao {
     @Insert(onConflict = IGNORE)
     abstract suspend fun addTransaction(transactionModel: TransactionModel)
 
+    @Insert(onConflict = IGNORE)
+    abstract suspend fun addOnboardingData(onboardingModel: OnboardingModel)
+
     @Delete
     abstract suspend fun deleteTransaction(transactionModel: TransactionModel)
 
     @Query(value = "Select * from `Transactions-Table`")
     abstract fun getAllTransactions(): Flow<List<TransactionModel>>
 
+    @Query("SELECT * FROM 'Transactions-Table' WHERE isScheduled = 1 AND timestamp <= :currentMillis")
+    abstract fun getCompletedScheduledTransactions(currentMillis: Long): Flow<List<TransactionModel>>
+
+    @Query("""
+        SELECT IFNULL(SUM(CAST(amount AS REAL)), 0.0)
+        FROM `Transactions-Table`
+        WHERE type = 'Expense'
+        AND strftime('%Y-%m-%d', datetime(timestamp / 1000, 'unixepoch', 'localtime')) = strftime('%Y-%m-%d', 'now', 'localtime')
+    """)
+    abstract fun getTodaysTotalExpense(): Flow<Double>
+
     @Query(value = "Select * from `Transactions-Table` where id=:id")
     abstract fun getTransactionById(id: Long): Flow<TransactionModel>
 
+    @Query(value = "Select * from `Onboarding-Table` where id=:id")
+    abstract fun getOnboardingData(id: Int): Flow<OnboardingModel>
+
     @Update(onConflict = IGNORE)
     abstract suspend fun updateTransaction(transactionModel: TransactionModel)
+
+    @Update(onConflict = IGNORE)
+    abstract suspend fun updateOnboardingData(onboardingModel: OnboardingModel)
 
     @Query("""
   SELECT IFNULL(SUM(
