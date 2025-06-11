@@ -89,8 +89,11 @@ fun GraphPageView(
         item {
             CustomTopAppBar("Analytics")
             MonthlyOverallByCategorySection(viewModel, amountFormattingSettings = amountFormattingSettings)
+            Spacer(modifier = Modifier.height(8.dp))
             MonthlySpendingByCategorySection(viewModel, amountFormattingSettings = amountFormattingSettings)
+            Spacer(modifier = Modifier.height(8.dp))
             MonthlyIncomeByCategorySection(viewModel = viewModel, amountFormattingSettings = amountFormattingSettings)
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
@@ -113,7 +116,7 @@ fun MonthlyIncomeByCategorySection(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
-            .padding(8.dp)
+            .padding(start = 8.dp, end = 8.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -205,7 +208,7 @@ fun MonthlySpendingByCategorySection(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
-            .padding(8.dp)
+            .padding(start = 8.dp, end = 8.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -389,7 +392,7 @@ fun MonthlyOverallByCategorySection(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
-            .padding(8.dp)
+            .padding(start = 8.dp, end = 8.dp)
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

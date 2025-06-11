@@ -105,6 +105,10 @@ fun AddTransactionView(
     message: (String) -> Unit,
     transactionId: Long
 ) {
+    var editModeData: TransactionModel? = null
+    if (transactionId != -1L){
+        editModeData = viewModel.getTransactionById(transactionId).collectAsState(initial = null).value
+    }
     val lazyListState = rememberLazyListState()
     var selectedIndex by remember { mutableIntStateOf(0) }
     var amount by remember { mutableStateOf("") }
@@ -166,11 +170,10 @@ fun AddTransactionView(
         }
     }
 
-    var editModeData: TransactionModel? = null
 
-    if (transactionId != -1L){
-        editModeData = viewModel.getTransactionById(transactionId).collectAsState(initial = null).value
-        if (editModeData != null) {
+    var initialized by remember { mutableStateOf(false) }
+    LaunchedEffect(editModeData) {
+        if (transactionId != -1L && editModeData != null && !initialized) {
             amount = editModeData.amount
             note = editModeData.note ?: ""
             dateSelected = editModeData.timestamp
@@ -193,7 +196,6 @@ fun AddTransactionView(
                 transactionFromIcon = Constant.accountItems[transactionFromIndex].icon
                 transactionToIcon = Constant.accountItems[transactionToIndex].icon
             }
-
         }
     }
 
@@ -285,7 +287,7 @@ fun AddTransactionView(
             }
             stickyHeader {
                 Card(
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.padding(start = 8.dp, end = 8.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)
@@ -745,7 +747,7 @@ fun DateSelected(
             .fillMaxWidth()
             .height(58.dp),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
     ){
         Icon(
             imageVector = ImageVector.vectorResource(R.drawable.ic_calendar_24px),

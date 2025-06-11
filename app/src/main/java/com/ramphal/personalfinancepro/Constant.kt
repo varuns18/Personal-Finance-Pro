@@ -57,6 +57,7 @@ object Constant {
     const val KEY_CURRENCY_CODE = "preferred_currency_code"
     const val KEY_AMOUNT_FORMAT = "amount_format"
     const val KEY_DATE_FORMAT_PATTERN = "date_format_pattern"
+    const val KEY_THEME_MODE = "my_theme"
 
     // Your currency options
     data class CurrencyOption(
